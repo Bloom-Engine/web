@@ -26,6 +26,16 @@ import "./storage.ts";
 import "./input.ts";
 import "./audio/index.ts";
 import "./script.ts";
+import { setComputedStyleProvider, viewCanvas } from "./browser.ts";
+import { setWheelDefault } from "./input.ts";
+import { installPage } from "./css/index.ts";
+
+// the page's HTML and CSS, drawn over the 3D view (config page: "css")
+const page = installPage(document, () => viewCanvas());
+if (page !== null) {
+  setWheelDefault((target, dy) => { page.scroll(target, dy); });
+  setComputedStyleProvider((e) => page.computed(e)?.values ?? null);
+}
 
 setCanvasContext("2d", (canvas: HTMLCanvasElement) => new Canvas2D(canvas));
 

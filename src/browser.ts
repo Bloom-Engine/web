@@ -181,7 +181,18 @@ export function mediaChanged(): void {
  * There is no stylesheet cascade without a CSS engine; values a page reads for layout come from
  * the element's layout box (width/height) when it has one.
  */
+let computedProvider: ((e: Element) => Record<string, string> | null) | null = null;
+/** The page painter's computed styles, for getComputedStyle. */
+export function setComputedStyleProvider(fn: (e: Element) => Record<string, string> | null): void { computedProvider = fn; }
+
 function getComputedStyle(e: Element, _pseudo?: string | null): unknown {
+  const values = computedProvider?.(e) ?? null;
+  if (values !== null) {
+    const decls: [string, string, boolean][] = Object.keys(values).map((k) => [k, values[k] ?? "", false]);
+    const box = e._box;
+    if (box !== null) { decls.push(["width", box.w + "px", false]); decls.push(["height", box.h + "px", false]); }
+    return styleDeclaration(null, decls, true);
+  }
   const decls = parseDeclarations(e.getAttribute("style") ?? "");
   const has = (name: string): boolean => decls.some((d) => d[0] === name);
   if (e.hidden && !has("display")) decls.push(["display", "none", false]);

@@ -1,0 +1,312 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>tuichess 3D</title>
+<meta name="description" content="Play the tuichess engine on a 3D board, in your browser.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='8' height='8' fill='%23ad8e62'/%3E%3Crect x='8' y='8' width='8' height='8' fill='%23ad8e62'/%3E%3Crect x='8' width='8' height='8' fill='%238a6a43'/%3E%3Crect y='8' width='8' height='8' fill='%238a6a43'/%3E%3C/svg%3E">
+<style>
+:root {
+  --bg: #0f1012; --panel: rgba(23, 24, 27, .86); --line: #2a2c31; --text: #e6e3dc; --dim: #9a968d;
+  --accent: #6fbf73; --link: #8ab4f8;
+  --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, "Liberation Mono", monospace;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font: 14px/1.5 var(--mono); overflow: hidden; }
+#view { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+.hud { position: fixed; left: calc(16px + env(safe-area-inset-left)); right: calc(16px + env(safe-area-inset-right)); top: calc(12px + env(safe-area-inset-top)); display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; pointer-events: none; }
+.hud > * { pointer-events: auto; }
+.logo { font-weight: 700; color: var(--text); text-decoration: none; letter-spacing: .02em; text-shadow: 0 1px 3px rgba(0,0,0,.75), 0 0 8px rgba(0,0,0,.45); }
+.logo span { color: var(--accent); }
+.controls { display: flex; flex-wrap: wrap; gap: 6px; margin-left: auto; }
+button, select { font: inherit; font-size: 13px; color: var(--text); background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 5px 10px; cursor: pointer; }
+button:hover, select:hover { border-color: #444851; }
+#status { position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom)); transform: translateX(-50%); background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 6px 14px; white-space: nowrap; max-width: calc(100% - 32px); overflow: hidden; text-overflow: ellipsis; }
+#promo { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px; text-align: center; }
+#promo p { margin: 0 0 10px; color: var(--dim); }
+#promo button { font-size: 22px; padding: 6px 14px; }
+/* ---- loading screen: the iOS launch screen's knight, centered, then the title and a progress bar under it ---- */
+#loading { position: fixed; inset: 0; background: var(--bg); z-index: 20; transition: opacity .4s ease-out; }
+#loading.done { opacity: 0; pointer-events: none; }
+#loading img { position: absolute; left: 50%; top: 50%; width: 160px; height: 160px; transform: translate(-50%, -50%); }
+#loading .loading-title { position: absolute; left: 0; right: 0; top: calc(50% + 92px); text-align: center; font-weight: 700; font-size: 20px; letter-spacing: .02em; }
+#loading .loading-title span { color: var(--accent); }
+#loading .loading-bar { position: absolute; left: 50%; top: calc(50% + 136px); width: 180px; height: 4px; margin-left: -90px; border-radius: 2px; background: var(--line); overflow: hidden; }
+#loading-progress { width: 0; height: 100%; background: var(--accent); transition: width .2s ease-out; }
+
+/* ---- menu: an HTML overlay over the WebGL canvas ---- */
+.menu { position: fixed; inset: 0; display: grid; place-items: center; overflow-y: auto;
+  padding: calc(16px + env(safe-area-inset-top)) calc(16px + env(safe-area-inset-right)) calc(16px + env(safe-area-inset-bottom)) calc(16px + env(safe-area-inset-left));
+  background: radial-gradient(ellipse at center, rgba(12, 13, 15, .45), rgba(12, 13, 15, .88)); animation: fade .2s ease-out; }
+.menu.title { background: radial-gradient(ellipse at center, rgba(12, 13, 15, .15), rgba(12, 13, 15, .8) 75%); }
+.screen { width: min(420px, 100%); background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 28px;
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); box-shadow: 0 18px 50px rgba(0, 0, 0, .45); animation: rise .22s ease-out; }
+.menu.title .screen { background: none; border-color: transparent; box-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none; text-align: center; }
+.menu.title h1, .menu.title p { text-shadow: 0 2px 14px rgba(0, 0, 0, .9), 0 0 3px rgba(0, 0, 0, .8); }
+.menu.title p { color: var(--text); }
+.screen h1 { font-size: 44px; line-height: 1.1; margin: 0 0 6px; letter-spacing: .02em; }
+.screen h1 span { color: var(--accent); }
+@media (max-width: 480px) { .screen h1 { font-size: 36px; } .screen { padding: 24px; } }
+.screen h2 { font-size: 22px; margin: 0 0 18px; }
+.screen p { color: var(--dim); margin: 0 0 20px; }
+.screen nav { display: grid; gap: 10px; margin-top: 8px; }
+.screen nav button { width: 100%; font-size: 16px; padding: 11px 16px; border-radius: 9px; }
+button.primary { background: var(--accent); border-color: var(--accent); color: #0f1012; font-weight: 700; }
+button.primary:hover { background: #82cf86; border-color: #82cf86; }
+button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.opt { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.seg { display: inline-flex; align-items: center; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.seg button { border: 0; border-radius: 0; background: transparent; padding: 6px 12px; }
+.seg button[aria-pressed="true"] { background: var(--accent); color: #0f1012; font-weight: 700; }
+.seg output { min-width: 136px; text-align: center; padding: 6px 4px; }
+.opt-theme { align-items: flex-start; }
+.seg.themes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); max-width: 360px; }
+.seg.themes button { text-align: left; padding: 7px 10px; border-top: 1px solid var(--line); }
+.seg.themes button:nth-child(-n+2) { border-top: 0; }
+.seg.themes button:nth-child(odd) { border-right: 1px solid var(--line); }
+.seg.themes small { display: block; font-size: 11px; opacity: .7; font-weight: 400; }
+.keys { display: grid; gap: 8px; margin: 0 0 20px; }
+.keys div { display: flex; align-items: center; gap: 12px; }
+kbd { min-width: 64px; text-align: center; font: inherit; font-size: 12px; background: #1c1d21; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 6px; padding: 2px 8px; }
+@keyframes fade { from { opacity: 0; } }
+@keyframes rise { from { opacity: 0; transform: translateY(10px); } }
+/* ---- learner mode: big pictures, few words (little ones can't read yet) ---- */
+:root { --round: ui-rounded, "SF Pro Rounded", "Nunito", "Varela Round", system-ui, sans-serif; }
+.screen.kid, #caption { font-family: var(--round); }
+.screen.kid button { font-family: var(--round); }
+.menu.title nav button.learn { background: #ffc928; border-color: #ffc928; color: #2a1d00; font-weight: 700; font-size: 18px; }
+.menu.title nav button.learn:hover { background: #ffd65a; border-color: #ffd65a; }
+.screen.kid { width: min(640px, 100%); text-align: center; }
+.screen.kid h2 { font-size: 26px; display: flex; align-items: center; justify-content: center; gap: 10px; }
+.kid-top { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; }
+.kid-top .face { font-size: 34px; line-height: 1; }
+.kid-top .total { margin-left: auto; font-size: 20px; color: #ffc928; font-weight: 700; }
+button.round { width: 52px; height: 52px; padding: 0; border-radius: 50%; font-size: 24px; line-height: 1; flex: none; }
+.faces { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 18px; }
+.faces button { font-size: 56px; line-height: 1; padding: 16px 0 10px; border-radius: 18px; border-width: 2px; }
+.faces button small { display: block; font-size: 15px; color: #ffc928; margin-top: 6px; min-height: 1.4em; }
+.faces button.last { border-color: #ffc928; }
+.seg.bands { margin: 0 auto; }
+.seg.bands button { font-family: var(--round); font-size: 15px; padding: 8px 12px; }
+.seg.bands button[aria-pressed="true"] { background: #ffc928; color: #2a1d00; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 12px; }
+.tiles button { position: relative; padding: 14px 6px 10px; border-radius: 18px; border-width: 2px; }
+.tiles .glyph { display: block; font-size: 58px; line-height: 1.1; }
+.tiles .badge { position: absolute; top: 6px; right: 10px; font-size: 26px; }
+.tiles .stars, .faces .stars { letter-spacing: 2px; }
+.tiles .stars { display: block; font-size: 20px; color: #ffc928; }
+.tiles .stars .off { color: #4a4c52; }
+.tiles small { display: block; font-size: 12px; color: var(--dim); margin-top: 2px; }
+.tiles button.next { border-color: #ffc928; animation: nudge 1.6s ease-in-out infinite; }
+@keyframes nudge { 50% { transform: scale(1.05); } }
+.big-stars { font-size: 72px; line-height: 1.2; color: #ffc928; margin: 6px 0 20px; letter-spacing: 8px; }
+.big-stars .off { color: #3a3c42; }
+.big-stars span { display: inline-block; animation: pop .5s cubic-bezier(.3, 1.6, .5, 1) both; }
+.big-stars span:nth-child(2) { animation-delay: .25s; } .big-stars span:nth-child(3) { animation-delay: .5s; }
+@keyframes pop { from { transform: scale(0); } }
+.kid-row { display: flex !important; justify-content: center; gap: 18px; }
+.kid-row button { width: 84px !important; height: 84px; font-size: 36px !important; border-radius: 50% !important; padding: 0 !important; }
+#learn-hud { position: fixed; left: calc(16px + env(safe-area-inset-left)); right: calc(16px + env(safe-area-inset-right)); top: calc(12px + env(safe-area-inset-top)); display: flex; align-items: center; gap: 12px; pointer-events: none; }
+#learn-hud > * { pointer-events: auto; }
+#learn-hud .spacer { flex: 1; }
+.dots { display: flex; gap: 8px; }
+.dots i { width: 16px; height: 16px; border-radius: 50%; background: rgba(23, 24, 27, .8); border: 2px solid #ffc928; }
+.dots i.on { background: #ffc928; }
+.dots i.now { box-shadow: 0 0 0 3px rgba(255, 201, 40, .35); }
+#caption { position: fixed; left: 50%; bottom: calc(22px + env(safe-area-inset-bottom)); transform: translateX(-50%); max-width: min(680px, calc(100% - 32px));
+  background: rgba(255, 252, 240, .95); color: #2a2620; border-radius: 18px; padding: 10px 20px; font-size: 18px; line-height: 1.35; text-align: center;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, .35); animation: rise .2s ease-out; }
+#coach { position: fixed; left: 50%; top: calc(64px + env(safe-area-inset-top)); transform: translateX(-50%); width: min(460px, calc(100% - 32px));
+  background: rgba(255, 252, 240, .96); color: #2a2620; border-radius: 18px; padding: 14px 18px; text-align: center; font-family: var(--round);
+  box-shadow: 0 10px 32px rgba(0, 0, 0, .4); animation: rise .2s ease-out; }
+#coach p { margin: 0 0 6px; font-size: 17px; line-height: 1.35; }
+#coach #coach-more { font-size: 13px; color: #7a7266; }
+#coach #coach-more:empty { display: none; }
+.coach-buttons { display: flex; gap: 10px; justify-content: center; margin-top: 10px; }
+.coach-buttons button { font-family: var(--round); font-size: 16px; padding: 9px 16px; border-radius: 12px; color: #2a2620; background: #efe8d8; border-color: #d8cfbb; }
+.coach-buttons button.primary { background: var(--accent); border-color: var(--accent); color: #0f1012; }
+[hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<canvas id="view"></canvas>
+<div class="hud" id="hud" hidden>
+  <a class="logo" href="https://tuichess.dev/">tui<span>chess</span> 3D</a>
+  <div class="controls">
+    <button id="hint" title="Show a good move (H)">Hint</button>
+    <button id="undo" title="Take back your last move (U)">Undo</button>
+    <button id="flip" title="Turn the camera to the other side (F)">Flip</button>
+    <button id="menu-open" title="Menu (Esc)">Menu</button>
+  </div>
+</div>
+<div id="status" hidden>Loading…</div>
+<div id="learn-hud" hidden>
+  <button class="round" id="learn-home" title="Lessons" aria-label="Lessons">⌂</button>
+  <div class="dots" id="learn-dots"></div>
+  <span class="spacer"></span>
+  <button class="round" id="learn-say" title="Say it again" aria-label="Say it again">🔊</button>
+  <button class="round" id="learn-hint" title="Show me" aria-label="Show me">💡</button>
+</div>
+<div id="caption" hidden></div>
+<div id="coach" hidden>
+  <p id="coach-text"></p>
+  <p id="coach-more"></p>
+  <div class="coach-buttons">
+    <button class="primary" id="coach-back">↶ Take it back</button>
+    <button id="coach-keep">Keep playing</button>
+  </div>
+</div>
+<div id="promo" hidden>
+  <p>Promote to</p>
+  <button data-p="q" title="Queen">♛</button>
+  <button data-p="r" title="Rook">♜</button>
+  <button data-p="b" title="Bishop">♝</button>
+  <button data-p="n" title="Knight">♞</button>
+</div>
+
+<div id="menu" class="menu title">
+  <section class="screen" id="screen-title">
+    <h1>tui<span>chess</span> 3D</h1>
+    <p>Play the tuichess engine on a 3D board.</p>
+    <nav>
+      <button class="primary" id="continue" data-action="continue" hidden>Continue game</button>
+      <button class="learn" id="learn" data-action="learn">🎓 Learn chess</button>
+      <button data-action="open:new">New game</button>
+      <button data-action="open:settings">Settings</button>
+      <button data-action="open:help">How to play</button>
+      <button id="quit" data-action="quit" hidden>Quit</button>
+    </nav>
+  </section>
+
+  <section class="screen" id="screen-new" hidden>
+    <h2>New game</h2>
+    <div class="opt"><span>Play as</span>
+      <div class="seg" data-setting="color"><button data-value="white">White</button><button data-value="black">Black</button><button data-value="random">Random</button></div>
+    </div>
+    <div class="opt"><span>Engine</span>
+      <div class="seg"><button data-action="level:-1" title="Easier">‹</button><output id="level-value">4 · Casual</output><button data-action="level:1" title="Stronger">›</button></div>
+    </div>
+    <div class="opt"><span>Coach</span>
+      <div class="seg" data-setting="coach"><button data-value="on">On</button><button data-value="off">Off</button></div>
+    </div>
+    <p id="level-note">Searches 3 plies deep. Makes the odd mistake.</p>
+    <nav>
+      <button class="primary" data-action="start">Start game</button>
+      <button data-action="back">Back</button>
+    </nav>
+  </section>
+
+  <section class="screen" id="screen-settings" hidden>
+    <h2>Settings</h2>
+    <div class="opt"><span>Coach</span>
+      <div class="seg" data-setting="coach"><button data-value="on">On</button><button data-value="off">Off</button></div>
+    </div>
+    <div class="opt"><span>Move hints</span>
+      <div class="seg" data-setting="hints"><button data-value="on">On</button><button data-value="off">Off</button></div>
+    </div>
+    <div class="opt"><span>Last move</span>
+      <div class="seg" data-setting="lastMove"><button data-value="on">On</button><button data-value="off">Off</button></div>
+    </div>
+    <div class="opt"><span>Shadows</span>
+      <div class="seg" data-setting="shadows"><button data-value="on">On</button><button data-value="off">Off</button></div>
+    </div>
+    <div class="opt"><span>Animation</span>
+      <div class="seg" data-setting="speed"><button data-value="slow">Slow</button><button data-value="normal">Normal</button><button data-value="fast">Fast</button></div>
+    </div>
+    <div class="opt"><span>Music</span>
+      <div class="seg" data-setting="music"><button data-value="off">Off</button><button data-value="low">Low</button><button data-value="high">High</button></div>
+    </div>
+    <div class="opt"><span>Sounds</span>
+      <div class="seg" data-setting="sounds"><button data-value="off">Off</button><button data-value="low">Low</button><button data-value="high">High</button></div>
+    </div>
+    <div class="opt"><span>Voice</span>
+      <div class="seg" data-setting="voice"><button data-value="off">Off</button><button data-value="low">Low</button><button data-value="high">High</button></div>
+    </div>
+    <div class="opt opt-theme"><span>Theme</span>
+      <div class="seg themes" data-setting="theme" id="theme-list"></div>
+    </div>
+    <nav>
+      <button data-action="back">Back</button>
+    </nav>
+  </section>
+
+  <section class="screen" id="screen-help" hidden>
+    <h2>How to play</h2>
+    <p class="for-mouse">Click one of your pieces, then one of the marked squares. You play against the tuichess engine.</p>
+    <p class="for-touch" hidden>Tap one of your pieces, then one of the marked squares. You play against the tuichess engine.</p>
+    <div class="keys">
+      <div><kbd>Drag</kbd><span>Turn the camera</span></div>
+      <div class="for-mouse"><kbd>Wheel</kbd><span>Zoom</span></div>
+      <div class="for-touch" hidden><kbd>Pinch</kbd><span>Zoom</span></div>
+      <div class="for-mouse"><kbd>U</kbd><span>Take back your move</span></div>
+      <div class="for-mouse"><kbd>F</kbd><span>Flip the board</span></div>
+      <div class="for-mouse"><kbd>Esc</kbd><span>Menu</span></div>
+    </div>
+    <nav>
+      <button data-action="back">Back</button>
+    </nav>
+  </section>
+
+  <section class="screen" id="screen-pause" hidden>
+    <h2>Paused</h2>
+    <p id="pause-info"></p>
+    <nav>
+      <button class="primary" data-action="resume">Resume</button>
+      <button data-action="undo">Take back move</button>
+      <button data-action="open:new">New game</button>
+      <button data-action="open:settings">Settings</button>
+      <button data-action="resign">Resign</button>
+      <button data-action="title">Main menu</button>
+    </nav>
+  </section>
+
+  <section class="screen kid" id="screen-who" hidden>
+    <div class="kid-top">
+      <button class="round" data-action="back" title="Back" aria-label="Back">⬅</button>
+      <h2 style="margin: 0 auto">Who is playing?</h2>
+      <button class="round" data-action="say:who" title="Say it" aria-label="Say it">🔊</button>
+    </div>
+    <div class="faces" id="faces"></div>
+  </section>
+
+  <section class="screen kid" id="screen-lessons" hidden>
+    <div class="kid-top">
+      <button class="round" data-action="back" title="Back" aria-label="Back">⬅</button>
+      <span class="face" id="lessons-face"></span>
+      <div class="seg bands" id="bands">
+        <button data-action="band:1" title="Ages 4 to 6">🌱 4–6</button><button data-action="band:2" title="Ages 7 to 9">🌿 7–9</button><button data-action="band:3" title="Ages 10 and up">🌳 10+</button>
+      </div>
+      <span class="total" id="lessons-total"></span>
+    </div>
+    <div class="tiles" id="lesson-tiles"></div>
+  </section>
+
+  <section class="screen kid" id="screen-learn-done" hidden>
+    <div class="big-stars" id="done-stars"></div>
+    <nav class="kid-row">
+      <button class="primary" data-action="learn-next" title="Next lesson" aria-label="Next lesson">▶</button>
+      <button data-action="learn-again" title="Play again" aria-label="Play again">↻</button>
+      <button data-action="learn-home" title="Lessons" aria-label="Lessons">⌂</button>
+    </nav>
+  </section>
+
+  <section class="screen" id="screen-over" hidden>
+    <h2 id="over-title"></h2>
+    <p id="over-text"></p>
+    <nav>
+      <button class="primary" data-action="rematch">Rematch</button>
+      <button data-action="open:new">New game</button>
+      <button data-action="review">Look at the board</button>
+      <button data-action="title">Main menu</button>
+    </nav>
+  </section>
+</div>
+<div id="loading" hidden>
+  <img src="./splash.png" alt="">
+  <div class="loading-title">tui<span>chess</span> 3D</div>
+  <div class="loading-bar"><div id="loading-progress"></div></div>
+</div>
+
+</body>
+</html>

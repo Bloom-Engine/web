@@ -72,6 +72,13 @@ export interface WebConfig {
   /** Desktop builds define `globalThis.nativeApp = { quit() }` so a page can show a Quit button. Default: true. */
   nativeApp: boolean;
   tv: TvHooks;
+  /**
+   * Who draws the page over the 3D view: "css" (the built-in engine: the page's HTML and CSS,
+   * laid out and drawn with Bloom 2D) or "none" (the game draws it, setting layout boxes itself).
+   */
+  page: "css" | "none";
+  /** Font files for font-family names (paths relative to root, or absolute). */
+  fonts: Record<string, string>;
   /** Extra commands for BLOOM_SCRIPT (see README), by name. */
   scriptCommands: Record<string, (arg: string) => void>;
 }
@@ -89,6 +96,8 @@ const settings: WebConfig = {
   storageFile: "",
   nativeApp: true,
   tv: {},
+  page: "css",
+  fonts: {},
   scriptCommands: {},
 };
 
@@ -96,6 +105,7 @@ export function configure(options: Partial<WebConfig>): void {
   const scripts = options.scriptCommands;
   Object.assign(settings, options);
   if (scripts !== undefined) settings.scriptCommands = { ...scripts };
+  if (options.fonts !== undefined) settings.fonts = { ...options.fonts };
   root = null;
 }
 

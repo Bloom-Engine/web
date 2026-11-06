@@ -53,10 +53,31 @@ offset (it starts from the beginning), `loopStart`/`loopEnd`, and offline render
 
 ## The page
 
-There is no CSS layout engine (yet). Whatever draws the page over the 3D view sets each element's
-layout box where it drew it (`setLayoutBox(element, { x, y, w, h })`, CSS pixels); hit testing,
-`getBoundingClientRect`, `clientWidth` and the observers use it. The view canvas fills the window
-under the page.
+The page's HTML and CSS are drawn over the 3D view by a small browser engine (`src/css/`), with
+Bloom 2D, every frame after the game's:
+
+| Stage | |
+|---|---|
+| Cascade | the user agent stylesheet, `<style>` and `<link rel=stylesheet>`, `style` attributes; `@media` (re-evaluated on resize), `!important` and origins, specificity and order, custom properties and `var()`, shorthands, inheritance, `inherit`/`initial`/`unset`; rules indexed by their rightmost id, class or tag |
+| Values | lengths (`px`, `em`, `rem`, `%`, `vw`/`vh`/`vmin`/`vmax`, ...), `calc()`, `min()`, `max()`, `clamp()`, `env(safe-area-inset-*)`, named, hex, `rgb()` and `hsl()` colors |
+| Layout | block flow (auto margins, collapsing sibling margins, `box-sizing`, min/max sizes, percentage heights), inline text broken into lines (`white-space`, `overflow-wrap`, `text-align`, `line-height`, `letter-spacing`, `text-transform`, `text-indent`), inline-blocks and replaced elements on the line, flexbox (direction, wrap, gap, grow/shrink/basis, auto margins, justify and align), grid (`px`, `%`, `fr`, `auto`, `minmax()`, `repeat()` with `auto-fill`/`auto-fit`, spans, gaps, alignment), `position` relative, absolute and fixed, `z-index`, list markers |
+| Paint | backgrounds (colors, linear and radial gradients, images; the root's and body's cover the canvas), borders (per side, rounded, dashed, dotted), `border-radius`, `box-shadow`, `outline`, text with `text-shadow`, `text-decoration`, `text-overflow: ellipsis`, `opacity`, `transform` (translate and scale), `overflow` clipping (rounded) and scrolling with the wheel, `<img>`, form controls' values |
+| Motion | transitions and `@keyframes` animations (timing functions, delays, iterations, direction, fill mode), `transitionend` and `animationend` |
+| Fonts | `font-family` resolved to font files (`@font-face` with local `url()`s, `configure({ fonts })`, the system's fonts for the generic families), the face nearest the weight and style, faux bold, the font's own metrics for the baseline and `line-height: normal`, per-character fallback fonts for symbols |
+
+Every element gets its layout box where it was drawn (after transforms), so hit testing, `:hover`,
+`getBoundingClientRect` and the observers see the page as drawn; `pointer-events: none` passes
+clicks through; `getComputedStyle` returns the computed styles. A full-window `<canvas>` (the 3D
+view) lies under the page: what paints before it in paint order is hidden by it, as in the browser.
+
+Not drawn: `backdrop-filter` and `filter`, blur (shadows are layered approximations), rotation and
+skew, `::before`/`::after`, floats, tables (laid out as blocks), color emoji, `<video>` frames.
+
+`tests/compare.sh` renders the pages in `tests/pages/` with Bloom and with headless Chrome and
+compares them (`.build/compare/`).
+
+A game that draws its own page sets `configure({ page: "none" })` and calls `setLayoutBox(element,
+{ x, y, w, h })` for what it draws.
 
 ## Configuration
 
@@ -72,17 +93,21 @@ under the page.
 | `canvas` | the view canvas's selector (default: the first `<canvas>`) |
 | `storageName`, `storageFile` | where `localStorage` is saved (`$BLOOM_STORAGE` wins) |
 | `tv` | Apple TV hooks: the overlay whose buttons get the focus, whether Menu exits, and what to do with directions nobody used |
+| `page` | `"css"` (default: the built-in engine draws the page) or `"none"` (the game draws it) |
+| `fonts` | font files for `font-family` names |
 | `scriptCommands` | extra `BLOOM_SCRIPT` commands |
 
 ## Scripted runs
 
 `BLOOM_SCRIPT="<frame> <command> [arg]; ..."`: `shot <path>`, `click <selector>`,
-`clickat <x> <y>`, `key <key>`, `type <text>`, `focus <selector>`, `log`, `fps`, `profile`,
-`quit`, and the game's own. `BLOOM_QUERY=theme=dino` sets `location.search`.
+`clickat <x> <y>`, `key <key>`, `type <text>`, `focus <selector>`, `log`, `audio`, `fps`, `profile`,
+`quit`, and the game's own. `BLOOM_QUERY=theme=dino` sets `location.search`; `BLOOM_CSS_PROFILE=1` prints what each page
+rebuild costs.
 
 ## Tests
 
 ```bash
 npm test             # the DOM suite under Node
 npm run test:perry   # the same suite compiled by Perry
+sh tests/compare.sh  # test pages: Bloom against headless Chrome
 ```

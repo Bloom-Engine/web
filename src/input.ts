@@ -425,9 +425,14 @@ onBeforeFrame(() => {
   const wheel = getMouseWheel();
   if (wheel !== 0) {
     const p = MOBILE ? [...touches.values()][0] ?? mouse : mouse;
-    targetAt(p.x, p.y).dispatchEvent(new WheelEvent("wheel", { ...mouseInit(p, 0), deltaY: -wheel * 100, deltaMode: 0 }));
+    const target = targetAt(p.x, p.y);
+    if (target.dispatchEvent(new WheelEvent("wheel", { ...mouseInit(p, 0), deltaY: -wheel * 100, deltaMode: 0 }))) wheelDefault?.(target, -wheel * 100);
   }
 });
+
+/** The default action of a wheel event nobody prevented (the page painter scrolls). */
+let wheelDefault: ((target: Element, dy: number) => void) | null = null;
+export function setWheelDefault(fn: (target: Element, dy: number) => void): void { wheelDefault = fn; }
 
 /** A click at a point, through the same path as the mouse (scripted tests use it). */
 export function clickAt(x: number, y: number): void {

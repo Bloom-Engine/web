@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>CSS features</title>
+<style>
+:root { --accent: #e0703a; --pad: 12px; }
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body { background: #20232a; color: #f0f0f0; font: 15px/1.4 system-ui, sans-serif; }
+header { display: flex; align-items: center; gap: 16px; padding: 14px 20px; background: linear-gradient(to right, #2d3240, #3b2d40); }
+header h1 { margin: 0; font-size: 22px; letter-spacing: .03em; }
+header nav { margin-left: auto; display: flex; gap: 8px; }
+header nav a { color: #9cf; text-decoration: none; padding: 4px 10px; border: 1px solid #456; border-radius: 999px; }
+main { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; padding: 20px; }
+.card { background: #2b2f38; border: 1px solid #3a3f4b; border-radius: 12px; padding: var(--pad) 16px; box-shadow: 0 6px 18px rgba(0,0,0,.35); }
+.card h2 { margin: 0 0 8px; font-size: 17px; color: var(--accent); }
+.card p { margin: 0 0 10px; color: #c8c8c8; }
+.row { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.pill { display: inline-block; padding: 2px 8px; border-radius: 6px; background: #3d4352; font-size: 12px; }
+.bar { height: 8px; border-radius: 4px; background: #3a3f4b; overflow: hidden; }
+.bar > i { display: block; height: 100%; width: 62%; background: linear-gradient(90deg, #4caf50, #cddc39); }
+.btn { font: inherit; color: #111; background: var(--accent); border: 0; border-radius: 8px; padding: 8px 14px; font-weight: 700; }
+.btn.ghost { background: transparent; color: var(--accent); border: 2px solid var(--accent); }
+.badge { position: relative; }
+.badge::after { content: ""; }
+.dot { position: absolute; top: -6px; right: -6px; width: 14px; height: 14px; border-radius: 50%; background: #e53935; border: 2px solid #2b2f38; }
+.truncate { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.center { display: grid; place-items: center; height: 90px; border: 1px dashed #556; border-radius: 8px; background: radial-gradient(circle at center, #3a4a6a, #20232a); }
+.toast { position: fixed; right: 20px; bottom: 20px; background: rgba(255,255,255,.92); color: #222; padding: 10px 16px; border-radius: 10px; box-shadow: 0 4px 14px rgba(0,0,0,.4); transform: translateY(-4px); }
+ul { margin: 0; padding-left: 20px; }
+small { color: #999; }
+.cols { display: flex; gap: 6px; }
+.cols > div { flex: 1; height: 28px; border-radius: 4px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Feature <span style="color: var(--accent)">check</span></h1>
+  <nav><a href="#a">Flex</a><a href="#b">Grid</a><a href="#c">Text</a></nav>
+</header>
+<main>
+  <section class="card">
+    <h2>Flex row</h2>
+    <p>Items spread with <b>space-between</b> and centered on the cross axis.</p>
+    <div class="row"><span class="pill">one</span><span class="pill">two</span><button class="btn">Go</button></div>
+  </section>
+  <section class="card">
+    <h2>Progress</h2>
+    <p>A gradient bar clipped by its rounded track.</p>
+    <div class="bar"><i></i></div>
+    <p style="margin-top: 10px"><small>62% done</small></p>
+  </section>
+  <section class="card">
+    <h2>Buttons</h2>
+    <div class="row" style="justify-content: flex-start">
+      <button class="btn">Primary</button>
+      <button class="btn ghost">Ghost</button>
+      <span class="badge"><button class="btn ghost">Inbox</button><span class="dot"></span></span>
+    </div>
+  </section>
+  <section class="card">
+    <h2>Text</h2>
+    <p class="truncate">This line is far too long to fit into the card, so it is cut off with an ellipsis at the end.</p>
+    <ul><li>First item</li><li>Second item with <em>emphasis</em></li></ul>
+  </section>
+  <section class="card">
+    <h2>Centered</h2>
+    <div class="center"><span>place-items: center</span></div>
+  </section>
+  <section class="card">
+    <h2>Flex grow</h2>
+    <div class="cols"><div style="background:#e57373"></div><div style="background:#81c784; flex: 2"></div><div style="background:#64b5f6"></div></div>
+  </section>
+</main>
+<div class="toast">Saved ✓</div>
+</body>
+</html>

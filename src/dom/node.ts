@@ -369,6 +369,8 @@ export class Element extends Node implements SelectorElement {
   readonly prefix: string | null = null;
   /** @internal name, value pairs in order */ _attrs: { name: string; value: string }[] = [];
   /** @internal */ _box: Rect | null = null;
+  /** @internal pointer-events: none (or not visible): hit testing passes through it */ _noHit = false;
+  /** @internal paint order from the page painter (-1: unknown, document order decides) */ _order = -1;
   private _classList: DOMTokenList | null = null;
   private _style: CSSStyleDeclaration | null = null;
   private _dataset: Record<string, string | undefined> | null = null;
@@ -797,12 +799,14 @@ export class Document extends Node {
     const walk = (e: Element): void => {
       if (e.hidden) return;
       const b = e._box;
-      if (b !== null && x >= b.x && x < b.x + b.w && y >= b.y && y < b.y + b.h) hits.push(e);
+      if (b !== null && !e._noHit && x >= b.x && x < b.x + b.w && y >= b.y && y < b.y + b.h) hits.push(e);
       for (const c of e.children) walk(c);
     };
     const root = this.documentElement;
     if (root !== null) walk(root);
-    hits.reverse();
+    // topmost first: by paint order where the page painter gave one, else later in the document
+    const seq = new Map<Element, number>(hits.map((e, i) => [e, i]));
+    hits.sort((a, b) => (a._order >= 0 && b._order >= 0 ? b._order - a._order : (seq.get(b) ?? 0) - (seq.get(a) ?? 0)));
     const body = this.body;
     if (body !== null && !hits.includes(body)) hits.push(body);
     if (root !== null && !hits.includes(root)) hits.push(root);
