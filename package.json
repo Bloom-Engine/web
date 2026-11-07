@@ -25,7 +25,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "peerDependencies": {
-    "@bloomengine/engine": ">=0.4.16"
+    "@bloomengine/engine": ">=0.4.17"
   },
   "perry": {
     "allow": { "nativeLibrary": ["@bloomengine/*"] }
