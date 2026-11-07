@@ -336,4 +336,11 @@ export function pageLoaded(): void {
   document.dispatchEvent(new Event("readystatechange"));
   windowTarget.dispatchEvent(new Event("load"));
   windowTarget.dispatchEvent(new Event("pageshow"));
+  if (config().autoplay && process.env["BLOOM_NO_AUTOPLAY"] === undefined) {
+    // the user activation a web game waits for before it starts sound (window listeners only)
+    windowTarget.dispatchEvent(new dom.PointerEvent("pointerdown", { pointerType: "mouse", isPrimary: true, button: 0, buttons: 1 }));
+    windowTarget.dispatchEvent(new dom.PointerEvent("pointerup", { pointerType: "mouse", isPrimary: true, button: 0 }));
+    windowTarget.dispatchEvent(new dom.KeyboardEvent("keydown", { key: "Unidentified" }));
+    windowTarget.dispatchEvent(new dom.KeyboardEvent("keyup", { key: "Unidentified" }));
+  }
 }

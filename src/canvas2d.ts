@@ -358,6 +358,15 @@ export class Canvas2D {
     const data = this.pixels(), W = this.canvas.width, H = this.canvas.height;
     const x0 = Math.max(0, x), y0 = Math.max(0, y), x1 = Math.min(W, x + w), y1 = Math.min(H, y + h);
     const a = color[3] * this.globalAlpha;
+    if (x1 <= x0 || y1 <= y0 || a <= 0) return;
+    if (a >= 1) {
+      // opaque: write one row, copy it down (boards and backgrounds are mostly this)
+      const r = color[0], g = color[1], b = color[2];
+      const first = (y0 * W + x0) * 4, end = first + (x1 - x0) * 4;
+      for (let k = first; k < end; k += 4) { data[k] = r; data[k + 1] = g; data[k + 2] = b; data[k + 3] = 255; }
+      for (let py = y0 + 1; py < y1; py++) data.copyWithin((py * W + x0) * 4, first, end);
+      return;
+    }
     for (let py = y0; py < y1; py++) {
       let k = (py * W + x0) * 4;
       for (let px = x0; px < x1; px++) { blend(data, k, color[0], color[1], color[2], a); k += 4; }
@@ -373,13 +382,16 @@ export class Canvas2D {
       const c = parseColor(paint);
       const a = c[3] * alpha;
       if (a <= 0) return;
+      const r = c[0], g = c[1], b = c[2];
       rasterize(polys, evenodd, W, H, (x0, y, cov, n) => {
         const row = y * W;
         let k = (row + x0) * 4;
         for (let i = 0; i < n; i++) {
           let v = cov[i] ?? 0;
           if (clip !== null) v *= clipAt(clip, x0 + i, y);
-          if (v > 0) blend(data, k, c[0], c[1], c[2], a * v);
+          // fully covered and opaque (most of a shape): the color, without blending
+          if (v >= 1 && a >= 1) { data[k] = r; data[k + 1] = g; data[k + 2] = b; data[k + 3] = 255; }
+          else if (v > 0) blend(data, k, r, g, b, a * v);
           k += 4;
         }
       }, clip);

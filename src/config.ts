@@ -81,6 +81,12 @@ export interface WebConfig {
   fonts: Record<string, string>;
   /** Extra commands for BLOOM_SCRIPT (see README), by name. */
   scriptCommands: Record<string, (arg: string) => void>;
+  /**
+   * A native app may play sound before any input, a web page may not: web games wait for the first
+   * pointerdown or keydown to start their AudioContext. With autoplay, the runtime sends one of
+   * each to `window` (no element gets them) when the page has loaded, so sound starts with the app.
+   */
+  autoplay: boolean;
 }
 
 const settings: WebConfig = {
@@ -99,6 +105,7 @@ const settings: WebConfig = {
   page: "css",
   fonts: {},
   scriptCommands: {},
+  autoplay: false,
 };
 
 export function configure(options: Partial<WebConfig>): void {

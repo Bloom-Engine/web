@@ -16,6 +16,7 @@ import type { Font } from "@bloomengine/engine/core";
 import { config, webRoot } from "../config.ts";
 import { localPath } from "../fetch.ts";
 import { split } from "./values.ts";
+import { emojiFace } from "./emoji.ts";
 import type { FontFace } from "./sheet.ts";
 
 export interface Face {
@@ -32,13 +33,22 @@ export interface Face {
   has(cp: number): boolean;
 }
 
+/** Where the first font's table directory starts: 0, or in a collection (.ttc) the offset of its first font. */
+export function faceStart(bytes: Uint8Array): number {
+  if (bytes[0] === 0x74 && bytes[1] === 0x74 && bytes[2] === 0x63 && bytes[3] === 0x66) {
+    return (bytes[12] ?? 0) * 16777216 + (((bytes[13] ?? 0) << 16) | ((bytes[14] ?? 0) << 8) | (bytes[15] ?? 0));
+  }
+  return 0;
+}
+
 /** The code point ranges a font's cmap maps (format 4 and 12 subtables). */
 export function fontCoverage(bytes: Uint8Array): [number, number][] {
   const u16 = (i: number): number => ((bytes[i] ?? 0) << 8) | (bytes[i + 1] ?? 0);
   const u32 = (i: number): number => (bytes[i] ?? 0) * 16777216 + (((bytes[i + 1] ?? 0) << 16) | ((bytes[i + 2] ?? 0) << 8) | (bytes[i + 3] ?? 0));
   let cmap = -1;
-  for (let t = 0; t < u16(4); t++) {
-    const r = 12 + t * 16;
+  const base = faceStart(bytes);
+  for (let t = 0; t < u16(base + 4); t++) {
+    const r = base + 12 + t * 16;
     if (String.fromCharCode(bytes[r] ?? 0, bytes[r + 1] ?? 0, bytes[r + 2] ?? 0, bytes[r + 3] ?? 0) === "cmap") cmap = u32(r + 8);
   }
   if (cmap < 0) return [];
@@ -82,6 +92,8 @@ function coverageTest(ranges: [number, number][]): (cp: number) => boolean {
 interface Candidate { file: string; weight: number; italic: boolean }
 
 const SF_MONO = "/System/Applications/Utilities/Terminal.app/Contents/Resources/Fonts/";
+/** iOS, iPadOS and tvOS keep the system's fonts in these folders (other names than macOS). */
+const IOS = "/System/Library/Fonts/";
 const SUPP = "/System/Library/Fonts/Supplemental/";
 function sfMono(): Candidate[] {
   const w: [string, number][] = [["Light", 300], ["Regular", 400], ["Medium", 500], ["Semibold", 600], ["Bold", 700], ["Heavy", 800]];
@@ -95,21 +107,25 @@ function sfMono(): Candidate[] {
 const SYSTEM: Record<string, Candidate[][]> = {
   monospace: [
     sfMono(),
+    [{ file: IOS + "CoreUI/Menlo.ttc", weight: 400, italic: false }],
+    [{ file: IOS + "Core/CourierNew.ttf", weight: 400, italic: false }, { file: IOS + "Core/CourierNewBold.ttf", weight: 700, italic: false }, { file: IOS + "Core/CourierNewItalic.ttf", weight: 400, italic: true }],
     [{ file: "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf", weight: 400, italic: false }, { file: "/usr/share/fonts/truetype/dejavu/DejaVuSansMono-Bold.ttf", weight: 700, italic: false }],
     [{ file: "C:\\Windows\\Fonts\\consola.ttf", weight: 400, italic: false }, { file: "C:\\Windows\\Fonts\\consolab.ttf", weight: 700, italic: false }],
   ],
   "sans-serif": [
     [{ file: "/System/Library/Fonts/SFNS.ttf", weight: 400, italic: false }, { file: "/System/Library/Fonts/SFNSItalic.ttf", weight: 400, italic: true }],
+    [{ file: IOS + "Core/SFUI.ttf", weight: 400, italic: false }, { file: IOS + "Core/SFUIItalic.ttf", weight: 400, italic: true }],
     [{ file: SUPP + "Arial.ttf", weight: 400, italic: false }, { file: SUPP + "Arial Bold.ttf", weight: 700, italic: false }, { file: SUPP + "Arial Italic.ttf", weight: 400, italic: true }],
     [{ file: "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", weight: 400, italic: false }, { file: "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", weight: 700, italic: false }],
     [{ file: "C:\\Windows\\Fonts\\segoeui.ttf", weight: 400, italic: false }, { file: "C:\\Windows\\Fonts\\segoeuib.ttf", weight: 700, italic: false }],
   ],
   serif: [
+    [{ file: IOS + "Core/NewYork.ttf", weight: 400, italic: false }, { file: IOS + "Core/NewYorkItalic.ttf", weight: 400, italic: true }],
     [{ file: SUPP + "Times New Roman.ttf", weight: 400, italic: false }, { file: SUPP + "Times New Roman Bold.ttf", weight: 700, italic: false }, { file: SUPP + "Times New Roman Italic.ttf", weight: 400, italic: true }],
     [{ file: "/usr/share/fonts/truetype/dejavu/DejaVuSerif.ttf", weight: 400, italic: false }],
     [{ file: "C:\\Windows\\Fonts\\times.ttf", weight: 400, italic: false }, { file: "C:\\Windows\\Fonts\\timesbd.ttf", weight: 700, italic: false }],
   ],
-  rounded: [[{ file: "/System/Library/Fonts/SFNSRounded.ttf", weight: 400, italic: false }]],
+  rounded: [[{ file: "/System/Library/Fonts/SFNSRounded.ttf", weight: 400, italic: false }], [{ file: IOS + "CoreUI/SFUIRounded.ttf", weight: 400, italic: false }]],
 };
 const ALIASES: Record<string, string> = {
   "ui-monospace": "monospace", "sf mono": "monospace", "sfmono-regular": "monospace", menlo: "monospace", monaco: "monospace", consolas: "monospace",
@@ -128,10 +144,11 @@ export function fontMetrics(bytes: Uint8Array): { ascent: number; descent: numbe
   const u16 = (i: number): number => ((bytes[i] ?? 0) << 8) | (bytes[i + 1] ?? 0);
   const i16 = (i: number): number => { const v = u16(i); return v >= 0x8000 ? v - 0x10000 : v; };
   const u32 = (i: number): number => (bytes[i] ?? 0) * 16777216 + (((bytes[i + 1] ?? 0) << 16) | ((bytes[i + 2] ?? 0) << 8) | (bytes[i + 3] ?? 0));
-  const tables = u16(4);
+  const base = faceStart(bytes);
+  const tables = u16(base + 4);
   let head = -1, hhea = -1;
   for (let t = 0; t < tables; t++) {
-    const r = 12 + t * 16;
+    const r = base + 12 + t * 16;
     const tag = String.fromCharCode(bytes[r] ?? 0, bytes[r + 1] ?? 0, bytes[r + 2] ?? 0, bytes[r + 3] ?? 0);
     if (tag === "head") head = u32(r + 8);
     else if (tag === "hhea") hhea = u32(r + 8);
@@ -212,13 +229,24 @@ const cache = new Map<string, Face>();
 
 /** Fonts for characters the page's fonts don't have, in order (a browser's fallback list). */
 const FALLBACK = [
-  "/System/Library/Fonts/Apple Symbols.ttf", "/System/Library/Fonts/Supplemental/Arial Unicode.ttf", "/System/Library/Fonts/SFNS.ttf",
+  "/System/Library/Fonts/Apple Symbols.ttf", IOS + "Core/AppleSymbols.ttf", IOS + "CoreAddition/STIXGeneral.otf", "/System/Library/Fonts/Supplemental/Arial Unicode.ttf", "/System/Library/Fonts/SFNS.ttf",
   "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", "/usr/share/fonts/truetype/noto/NotoSansSymbols-Regular.ttf", "C:\\Windows\\Fonts\\seguisym.ttf",
 ];
 const fallbackFaces = new Map<string, Face | null>();
 
 /** The face that draws a code point when `face` lacks it (null: none does). */
 export function fallbackFor(face: Face, cp: number, weight: number): Face | null {
+  void face;
+  // emoji (U+1F000 and up) prefer color, as in a browser; other symbols are text first
+  const emojiFirst = cp >= 0x1f000;
+  if (emojiFirst) { const e = emojiFace(); if (e !== null && e.has(cp)) return e; }
+  const f = textFallback(cp, weight);
+  if (f !== null || emojiFirst) return f;
+  const e = emojiFace();
+  return e !== null && e.has(cp) ? e : null;
+}
+
+function textFallback(cp: number, weight: number): Face | null {
   for (const file of FALLBACK) {
     let f = fallbackFaces.get(file);
     if (f === undefined) {
@@ -235,7 +263,6 @@ export function fallbackFor(face: Face, cp: number, weight: number): Face | null
     }
     if (f !== null && f.has(cp)) return weight >= 600 ? { ...f, synthBold: true } : f;
   }
-  void face;
   return null;
 }
 

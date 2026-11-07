@@ -25,6 +25,7 @@
 import type { Element, Node, Text } from "../dom/node.ts";
 import { Computed, INHERITED } from "./cascade.ts";
 import { faceFor, fallbackFor, type Face } from "./fonts.ts";
+import { emojiFace } from "./emoji.ts";
 import { length, split, type LengthContext } from "./values.ts";
 
 export interface Edges { t: number; r: number; b: number; l: number }
@@ -244,9 +245,16 @@ function byFace(t: string, s: Computed): { text: string; face: Face | undefined 
   const primary = fontOf(s).face;
   const weight = Number(s.get("font-weight")) || 400;
   const out: { text: string; face: Face | undefined }[] = [];
-  for (const ch of t) {
+  const chars = [...t];
+  for (let i = 0; i < chars.length; i++) {
+    const ch = chars[i] as string;
     const cp = ch.codePointAt(0) ?? 0;
-    const face = cp < 0x80 || cp === 0x20 || primary.has(cp) ? undefined : fallbackFor(primary, cp, weight) ?? undefined;
+    // U+FE0F after a character asks for its emoji (color) form, as in ❤️
+    const emoji = chars[i + 1] === "\uFE0F" ? emojiFace() : null;
+    let face = emoji !== null && emoji.has(cp) ? emoji
+      : cp < 0x80 || cp === 0x20 || primary.has(cp) ? undefined : fallbackFor(primary, cp, weight) ?? undefined;
+    // the selector and a zero-width joiner stay with the character before them (👨‍👩‍👧)
+    if ((cp === 0xfe0f || cp === 0x200d) && out.length > 0) face = (out[out.length - 1] as { face: Face | undefined }).face;
     const last = out[out.length - 1];
     if (last !== undefined && last.face === face) last.text += ch; else out.push({ text: ch, face });
   }
