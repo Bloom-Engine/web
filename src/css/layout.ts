@@ -642,12 +642,25 @@ export function layoutBox(b: Box, cbW: number, cbH: number, x: number, y: number
     else contentH = layoutFlow(b, cx, cy, cw, contentCbH);
   }
   b.contentH = contentH;
+  // A scroll container scrolls as far as its children reach: a grid or flex container of a fixed
+  // height reports that height as its content, though an item may be taller.
+  const oy = s.get("overflow-y");
+  if (oy === "auto" || oy === "scroll") {
+    let bottom = cy + contentH;
+    for (const c of b.children) if (!c.outOfFlow) bottom = Math.max(bottom, c.y + c.h + c.margin.b);
+    b.contentH = Math.max(contentH, bottom - cy);
+  }
   let h = Number.isFinite(fixedH) ? fixedH : contentH + pbv;
   if (!Number.isFinite(fixedH)) {
     if (Number.isFinite(maxH)) h = Math.min(h, borderBox ? maxH : maxH + pbv);
     if (Number.isFinite(minH)) h = Math.max(h, borderBox ? minH : minH + pbv);
   }
   b.h = Math.max(h, pbv);
+  // content that shrank (another screen in the same scroll box) pulls the scroll position back, as in a browser
+  if ((oy === "auto" || oy === "scroll") && b.el !== null && b.el.scrollTop > 0) {
+    const max = Math.max(0, b.contentH - (b.h - pbv));
+    if (b.el.scrollTop > max) b.el.scrollTop = max;
+  }
 
   // relative positioning
   if (b.position === "relative" || b.position === "sticky") {

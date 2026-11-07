@@ -184,6 +184,8 @@ export function mediaChanged(): void {
 let computedProvider: ((e: Element) => Record<string, string> | null) | null = null;
 /** The page painter's computed styles, for getComputedStyle. */
 export function setComputedStyleProvider(fn: (e: Element) => Record<string, string> | null): void { computedProvider = fn; }
+/** One computed property of an element, straight from the provider ("" without one). */
+export function computedValue(e: Element, name: string): string { return computedProvider?.(e)?.[name] ?? ""; }
 
 function getComputedStyle(e: Element, _pseudo?: string | null): unknown {
   const values = computedProvider?.(e) ?? null;

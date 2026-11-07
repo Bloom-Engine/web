@@ -4,6 +4,7 @@
  *   shot <path>          a screenshot (Bloom's), ~ for $HOME
  *   click <selector>     a click on the first shown element matching it, at its center (as the mouse would)
  *   clickat <x> <y>      a click at a point in CSS pixels
+ *   touch <x> <y>        a finger down at (or moved to) a point; untouch lifts it
  *   key <key>            a key press and release (a KeyboardEvent.key: Escape, Enter, a, Space)
  *   type <text>          text typed into the focused field
  *   focus <selector>     move the focus to an element
@@ -19,7 +20,7 @@ import { takeScreenshot } from "@bloomengine/engine";
 import { printProfilerSummary } from "@bloomengine/engine/core";
 import { config } from "./config.ts";
 import { document } from "./browser.ts";
-import { clickAt, pressKey } from "./input.ts";
+import { clickAt, pressKey, scriptTouch } from "./input.ts";
 import { KeyboardEvent, InputEvent, HTMLInputElement, HTMLTextAreaElement, type Element } from "./dom/index.ts";
 import { frameCount, onAfterFrame, quit, timing } from "./frame.ts";
 import { contextReport, mediaElements } from "./audio/index.ts";
@@ -52,6 +53,8 @@ function run(command: string, arg: string): void {
       return;
     }
     case "clickat": { const [x, y] = arg.split(/\s+/).map(Number); clickAt(x ?? 0, y ?? 0); return; }
+    case "touch": { const [x, y] = arg.split(/\s+/).map(Number); scriptTouch({ x: x ?? 0, y: y ?? 0 }); return; }
+    case "untouch": scriptTouch(null); return;
     case "key": {
       const key = arg === "Space" ? " " : arg;
       pressKey(key);

@@ -36,7 +36,8 @@ import { onBeforeFrame } from "../frame.ts";
 import { encodeWav, extensionFor, probeAudio } from "./probe.ts";
 
 let deviceReady = false;
-function device(): void { if (!deviceReady) { deviceReady = true; initAudioDevice(); } }
+/** Start Bloom's audio device, once for the whole page (contexts and media elements share it). */
+export function device(): void { if (!deviceReady) { deviceReady = true; initAudioDevice(); } }
 
 let warned = new Set<string>();
 function warnOnce(what: string): void { if (!warned.has(what)) { warned.add(what); console.error("Web Audio on Bloom: " + what); } }

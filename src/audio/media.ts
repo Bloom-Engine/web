@@ -12,14 +12,13 @@
  * once (a crossfade between two copies of a loop).
  */
 import { existsSync, openSync, readSync, closeSync, statSync } from "node:fs";
-import { initAudioDevice, loadMusic, playMusicFrom, stopMusic, setMusicVolume, setMusicLooping, getMusicTimePlayed, getMusicTimeLength, isMusicPlaying } from "@bloomengine/engine/audio";
+import { loadMusic, playMusicFrom, stopMusic, setMusicVolume, setMusicLooping, getMusicTimePlayed, getMusicTimeLength, isMusicPlaying } from "@bloomengine/engine/audio";
 import type { Music } from "@bloomengine/engine/core";
 import { Event, HTMLElement, defineElement, type Document } from "../dom/index.ts";
 import { fileFor } from "../image.ts";
-import { onAudioFrame, route, type AudioNode, type MediaElementAudioSourceNode } from "./context.ts";
+import { device, onAudioFrame, route, type AudioNode, type MediaElementAudioSourceNode } from "./context.ts";
 import { probeAudio } from "./probe.ts";
 
-let deviceReady = false;
 
 /** The first bytes of a file: enough for its header (an MP3's length needs its frames, so all of it when small). */
 function head(path: string, max: number): Uint8Array {
@@ -228,7 +227,7 @@ export class HTMLMediaElement extends HTMLElement {
 
   private startPlayback(): void {
     if (this.paused || this.file === null) return;
-    if (!deviceReady) { deviceReady = true; initAudioDevice(); }
+    device();
     if (this.music === null) {
       const m = loadMusic(this.file);
       if (m.handle === 0) { this.fail(3, "MEDIA_ERR_DECODE: " + this.file); return; }

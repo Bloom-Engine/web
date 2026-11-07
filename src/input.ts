@@ -34,7 +34,7 @@ import {
   HTMLInputElement, HTMLTextAreaElement, HTMLDialogElement, checkObservers,
 } from "./dom/index.ts";
 import { config } from "./config.ts";
-import { document, fitView, mediaChanged, viewCanvas, windowTarget } from "./browser.ts";
+import { computedValue, document, fitView, mediaChanged, viewCanvas, windowTarget } from "./browser.ts";
 import { MOBILE, TV, cssSize, onBeforeFrame, pixelRatio, quit, screenSize } from "./frame.ts";
 
 // ---------------------------------------------------------------- hit testing
@@ -159,7 +159,11 @@ export function moveFocus(direction: 1 | -1): void {
 
 // ---------------------------------------------------------------- pointer
 
-interface PointerState { id: number; x: number; y: number; down: number; target: Element; pressed: Element | null; over: Element | null }
+interface PointerState {
+  id: number; x: number; y: number; down: number; target: Element; pressed: Element | null; over: Element | null;
+  /** touch panning: where the finger went down, and whether the gesture became a scroll */
+  sx?: number; sy?: number; panning?: boolean; vy?: number;
+}
 
 const mouse: PointerState = { id: 1, x: -1, y: -1, down: 0, target: document.body as Element, pressed: null, over: null };
 let lastClick = { at: 0, x: 0, y: 0, target: null as Element | null, count: 0 };
@@ -285,27 +289,91 @@ function touchEvent(type: string, changed: PointerState[], target: Element): voi
   }));
 }
 
+/** How far (CSS px) a finger moves before the browser decides it is scrolling, not tapping. */
+const PAN_SLOP = 10;
+const flings: { target: Element; v: number }[] = [];
+
+/** Does an element or one of its ancestors forbid panning (touch-action: none)? */
+function panForbidden(e: Element | null): boolean {
+  for (; e !== null; e = e.parentElement) {
+    const v = computedValue(e, "touch-action");
+    if (v === "none" || v === "pinch-zoom" || v === "pan-x") return true;
+  }
+  return false;
+}
+
+/**
+ * A vertical drag past the slop over something that scrolls becomes a pan, as in a mobile browser:
+ * the page gets pointercancel and touchcancel, no click follows, and the box follows the finger.
+ */
+function startPan(p: PointerState, x: number, y: number): boolean {
+  if (scrollDefault === null || p.sx === undefined || p.sy === undefined || touches.size > 1) return false;
+  const dx = x - p.sx, dy = y - p.sy;
+  if (Math.abs(dy) < PAN_SLOP || Math.abs(dy) < Math.abs(dx)) return false;
+  if (panForbidden(p.pressed ?? p.target)) return false;
+  if (!scrollDefault(p.pressed ?? p.target, p.y - y)) return false;
+  p.panning = true;
+  p.vy = p.y - y;
+  p.x = x; p.y = y;
+  p.target = p.pressed ?? p.target;
+  const init = pointerInit(p, -1, "touch");
+  p.target.dispatchEvent(new PointerEvent("pointercancel", { ...init, cancelable: false }));
+  touchEvent("touchcancel", [p], p.target);
+  p.pressed = null;
+  p.down = 0;
+  if (p.id === firstTouch) { document._active = null; document._hover = null; }
+  return true;
+}
+
+/** Momentum after a pan: the box keeps scrolling and slows down. */
+function flingFrame(): void {
+  for (let i = flings.length - 1; i >= 0; i--) {
+    const f = flings[i] as { target: Element; v: number };
+    f.v *= 0.95;
+    if (Math.abs(f.v) < 0.5 || scrollDefault === null || !scrollDefault(f.target, f.v)) flings.splice(i, 1);
+  }
+}
+
 /** Each finger is a pointer with its own id (Bloom's touch slot + 2) and a Touch. */
+/** A scripted finger (BLOOM_SCRIPT touch/untouch), in CSS pixels; it is touch slot 0. */
+let scripted: { x: number; y: number } | null = null;
+let scriptedUsed = false;
+export function scriptTouch(at: { x: number; y: number } | null): void { scripted = at; scriptedUsed = true; }
+
 function touchFrame(): void {
   const ratio = pixelRatio();
-  const max = getMaxTouchPoints();
+  const max = scriptedUsed ? Math.max(1, getMaxTouchPoints()) : getMaxTouchPoints();
   for (let i = 0; i < max; i++) {
     const id = i + 2;
-    const active = isTouchActive(i);
+    const fake = scriptedUsed && i === 0;
+    const active = fake ? scripted !== null : isTouchActive(i);
     const known = touches.get(id);
     if (active) {
-      const x = getTouchX(i) / ratio, y = getTouchY(i) / ratio;
+      const x = fake ? (scripted as { x: number; y: number }).x : getTouchX(i) / ratio;
+      const y = fake ? (scripted as { x: number; y: number }).y : getTouchY(i) / ratio;
       if (known === undefined) {
-        const p: PointerState = { id, x, y, down: 0, target: targetAt(x, y), pressed: null, over: null };
+        const p: PointerState = { id, x, y, down: 0, target: targetAt(x, y), pressed: null, over: null, sx: x, sy: y };
         touches.set(id, p);
+        flings.length = 0;
         if (firstTouch < 0) firstTouch = id;
         crossTo(p, p.target, "touch");
         touchEvent("touchstart", [p], p.target);
         press(p, 0, "touch");
+      } else if (known.panning === true) {
+        const dy = known.y - y;
+        known.vy = (known.vy ?? 0) * 0.5 + dy * 0.5;
+        known.x = x; known.y = y;
+        scrollDefault?.(known.target, dy);
       } else if (known.x !== x || known.y !== y) {
+        if (startPan(known, x, y)) continue;
         move(known, x, y, "touch");
         touchEvent("touchmove", [known], known.pressed ?? known.target);
       }
+    } else if (known !== undefined && known.panning === true) {
+      // a scroll gesture ends without pointer or touch events (they were cancelled); it glides on
+      if (Math.abs(known.vy ?? 0) > 1) flings.push({ target: known.target, v: known.vy ?? 0 });
+      touches.delete(id);
+      if (firstTouch === id) { firstTouch = -1; document._hover = null; }
     } else if (known !== undefined) {
       release(known, 0, "touch");
       touchEvent("touchend", [known], known.target);
@@ -413,7 +481,7 @@ onBeforeFrame(() => {
     if (field !== null && c >= 32 && c !== 127) typeInto(field, String.fromCodePoint(c), "insertText");
   }
 
-  if (MOBILE) { touchFrame(); }
+  if (MOBILE || scriptedUsed) { touchFrame(); flingFrame(); }
   else {
     const ratio = pixelRatio();
     const x = getMouseX() / ratio, y = getMouseY() / ratio;
@@ -426,13 +494,19 @@ onBeforeFrame(() => {
   if (wheel !== 0) {
     const p = MOBILE ? [...touches.values()][0] ?? mouse : mouse;
     const target = targetAt(p.x, p.y);
-    if (target.dispatchEvent(new WheelEvent("wheel", { ...mouseInit(p, 0), deltaY: -wheel * 100, deltaMode: 0 }))) wheelDefault?.(target, -wheel * 100);
+    if (target.dispatchEvent(new WheelEvent("wheel", { ...mouseInit(p, 0), deltaY: -wheel * 100, deltaMode: 0 }))) scrollDefault?.(target, -wheel * 100);
   }
 });
 
-/** The default action of a wheel event nobody prevented (the page painter scrolls). */
-let wheelDefault: ((target: Element, dy: number) => void) | null = null;
-export function setWheelDefault(fn: (target: Element, dy: number) => void): void { wheelDefault = fn; }
+/**
+ * Scrolling the nearest scrollable box around an element by dy CSS pixels (the page painter does
+ * it): the default action of a wheel event nobody prevented, and of a finger dragging. Returns
+ * whether anything moved.
+ */
+let scrollDefault: ((target: Element, dy: number) => boolean) | null = null;
+export function setScrollDefault(fn: (target: Element, dy: number) => boolean): void { scrollDefault = fn; }
+/** @deprecated use setScrollDefault */
+export function setWheelDefault(fn: (target: Element, dy: number) => void): void { scrollDefault = (t, dy) => { fn(t, dy); return true; }; }
 
 /** A click at a point, through the same path as the mouse (scripted tests use it). */
 export function clickAt(x: number, y: number): void {
