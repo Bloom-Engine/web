@@ -35,7 +35,7 @@ import {
 } from "./dom/index.ts";
 import { config } from "./config.ts";
 import { computedValue, document, fitView, mediaChanged, viewCanvas, windowTarget } from "./browser.ts";
-import { MOBILE, TV, cssSize, onBeforeFrame, pixelRatio, quit, screenSize } from "./frame.ts";
+import { ANDROID, MOBILE, TV, cssSize, onBeforeFrame, pixelRatio, quit, screenSize } from "./frame.ts";
 
 // ---------------------------------------------------------------- hit testing
 
@@ -460,6 +460,9 @@ onBeforeFrame(() => {
   }
   checkObservers(document._viewport, pixelRatio());
   if (TV) { remote(); return; }
+  // Android's Back button is Escape, except where Menu would leave an Apple TV app (the native
+  // layer then hands Back to the system)
+  if (ANDROID) setMenuButtonExits(config().tv.menuExits?.() ?? false);
   // macOS: Bloom's window has no menu bar, so the standard Cmd-Q / Cmd-W close it here
   if (!MOBILE && (isKeyDown(Key.LEFT_SUPER) || isKeyDown(Key.RIGHT_SUPER)) && (isKeyPressed(Key.Q) || isKeyPressed(Key.W))) quit();
 

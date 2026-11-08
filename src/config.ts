@@ -34,7 +34,10 @@ export interface HookElement {
 export interface TvHooks {
   /** The element whose buttons get the focus (a menu or a dialog), or null for none. */
   overlay?(): HookElement | null;
-  /** Whether Menu leaves the app now (Apple wants it to on the root screen). Default: false. */
+  /**
+   * Whether Menu leaves the app now (Apple wants it to on the root screen). Default: false.
+   * Android's Back button follows it too: it leaves the app when this is true, else it is Escape.
+   */
   menuExits?(): boolean;
   /**
    * Called when no overlay is open: a direction (dx, dy each -1, 0, 1), and whether Select was
@@ -122,14 +125,18 @@ let root: string | null = null;
 
 /**
  * The folder index.html is in, ending in "/": `assets/<bundle>/` in an app bundle (next to
- * the executable on iOS and tvOS, Contents/Resources on macOS), else the configured root.
+ * the executable on iOS and tvOS, Contents/Resources on macOS, in $BLOOM_ASSET_PATH on Android,
+ * where the Activity extracts the APK's assets to its files folder), else the configured root.
  */
 export function webRoot(): string {
   if (root !== null) return root;
   const exe = process.execPath ?? process.argv[0] ?? "";
   const dir = exe.slice(0, exe.lastIndexOf("/") + 1);
   const bundle = settings.bundle;
-  for (const bundled of [dir + "assets/" + bundle + "/", dir + "../Resources/assets/" + bundle + "/"]) {
+  const places = [dir + "assets/" + bundle + "/", dir + "../Resources/assets/" + bundle + "/"];
+  const extracted = process.env["BLOOM_ASSET_PATH"];
+  if (extracted !== undefined && extracted !== "") places.unshift(extracted + "/assets/" + bundle + "/");
+  for (const bundled of places) {
     if (existsSync(bundled + "index.html")) { root = bundled; return root; }
   }
   let r = settings.root;
