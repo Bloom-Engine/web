@@ -15,6 +15,7 @@ import * as dom from "./dom/index.ts";
 import { Document, Element, EventTarget, MessageEvent, Event, styleDeclaration, parseDeclarations, setLayoutBox, type HTMLCanvasElement } from "./dom/index.ts";
 import { config, pageUrl, webRoot } from "./config.ts";
 import { MOBILE, TV, cancelAnimationFrame, cssSize, pixelRatio, quit, requestAnimationFrame } from "./frame.ts";
+import { getPreferredLanguages } from "@bloomengine/engine/core";
 
 const g = globalThis as Record<string, unknown>;
 
@@ -241,11 +242,18 @@ g["self"] = globalThis;
 g["globalThis"] = globalThis;
 g["location"] = location;
 g["history"] = { length: 1, state: null, scrollRestoration: "auto", pushState(): void {}, replaceState(): void {}, back(): void {}, forward(): void {}, go(): void {} };
+// The device's languages, most preferred first (the system list on Apple
+// platforms, the system locale on Android/Windows, LANG elsewhere).
+const LANGUAGES: string[] = (() => {
+  const langs = getPreferredLanguages();
+  return langs.length > 0 ? langs : ["en-US"];
+})();
+
 g["navigator"] = {
   userAgent: "Mozilla/5.0 (Bloom; Perry) AppleWebKit/537.36 (KHTML, like Gecko)", appName: "Netscape", appVersion: "5.0",
   vendor: "Bloom", platform: process.platform === "darwin" ? (MOBILE ? "iPhone" : "MacIntel") : process.platform,
-  language: process.env["LANG"]?.split(".")[0]?.replace("_", "-") ?? "en-US",
-  get languages(): string[] { return [(g["navigator"] as { language: string }).language]; },
+  language: LANGUAGES[0],
+  languages: LANGUAGES,
   maxTouchPoints: MOBILE ? 5 : 0, hardwareConcurrency: 8, deviceMemory: 8, onLine: true, cookieEnabled: false, webdriver: false,
   pdfViewerEnabled: false, doNotTrack: null,
   getGamepads: (): unknown[] => [],
