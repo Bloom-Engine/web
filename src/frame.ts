@@ -8,14 +8,12 @@
  * requestAnimationFrame callbacks, then the page (onAfterFrame).
  */
 import { initWindow, windowShouldClose, closeWindow, beginDrawing, endDrawing, clearBackground, setTargetFPS, getScreenWidth, getScreenHeight } from "@bloomengine/engine";
-import { QualityPreset, setQualityPreset, setTaaEnabled, setRenderScale, setAutoResolution, isMobile, isTV, getPlatform, Platform, getDisplayScale, getSafeAreaInset, SafeAreaEdge, setProfilerEnabled } from "@bloomengine/engine/core";
+import { QualityPreset, setQualityPreset, setTaaEnabled, setRenderScale, setAutoResolution, isMobile, isTV, getDisplayScale, getSafeAreaInset, SafeAreaEdge, setProfilerEnabled } from "@bloomengine/engine/core";
 
 /** iPhone, iPad (and Android): touch input, no window to close, the app bundle for files. */
 export const MOBILE = isMobile();
 /** Apple TV: the Siri Remote (no pointer), seen from across the room. */
 export const TV = isTV();
-/** Android: a phone or tablet like MOBILE, with a Back button and its files in the app's files folder. */
-export const ANDROID = getPlatform() === Platform.ANDROID;
 
 let callback: ((time: number) => void) | null = null;
 let rafQueue: { id: number; fn: (time: number) => void }[] = [];
