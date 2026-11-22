@@ -10,7 +10,7 @@
  * bytes.
  */
 import { existsSync, readFileSync, statSync } from "node:fs";
-import { config, pageUrl, webRoot } from "./config.ts";
+import { config, pageUrl, urlPathToFile, webRoot } from "./config.ts";
 import { blobOf } from "./blob.ts";
 
 const files = new WeakMap<object, string>();
@@ -24,7 +24,7 @@ export function localPath(input: string): string | null {
   if (/^[a-z][a-z0-9+.-]*:/i.test(href) && !href.startsWith("file:")) return null;
   const site = webRoot() + config().served;
   if (href.startsWith("/") && !href.startsWith("//")) return site + href.slice(1);
-  let path = decodeURIComponent(new URL(href, pageUrl()).pathname);
+  let path = urlPathToFile(decodeURIComponent(new URL(href, pageUrl()).pathname));
   // "/x" resolved against the page's file:// URL lands at the disk's root: it meant the site's
   if (!existsSync(path) && !path.startsWith(site) && existsSync(site + path.slice(1))) path = site + path.slice(1);
   return path;

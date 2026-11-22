@@ -24,7 +24,7 @@ import { clickAt, pressKey, scriptTouch } from "./input.ts";
 import { KeyboardEvent, InputEvent, HTMLInputElement, HTMLTextAreaElement, type Element } from "./dom/index.ts";
 import { frameCount, onAfterFrame, quit, timing } from "./frame.ts";
 import { contextReport, mediaElements } from "./audio/index.ts";
-import { expandHome } from "./storage.ts";
+import { expandHome, parentDir } from "./storage.ts";
 
 /** Milliseconds per frame of named parts a renderer measures (printed by `fps`), summed since the last read. */
 export const extraTimings: Record<string, number> = {};
@@ -42,7 +42,7 @@ function run(command: string, arg: string): void {
   switch (command) {
     case "shot": {
       const path = expandHome(arg);
-      mkdirSync(path.slice(0, path.lastIndexOf("/")), { recursive: true });
+      mkdirSync(parentDir(path), { recursive: true });
       takeScreenshot(path);
       return;
     }
