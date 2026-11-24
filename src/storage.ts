@@ -8,11 +8,16 @@
  * The file is $BLOOM_STORAGE, else config's storageFile, else
  * `<storageName>` in the app's folder: ~/.config/<app>/ (or
  * $XDG_CONFIG_HOME/<app>/) on a desktop and Apple TV, Library/Application
- * Support/<app>/ in an iOS app's container.
+ * Support/<app>/ in an iOS app's container, %APPDATA%\<app>\ on Windows.
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { config } from "./config.ts";
 import { MOBILE, frameCount, onAfterFrame, onQuit } from "./frame.ts";
+
+/** The folder a file is in, for "/" and Windows' "\" alike. */
+export function parentDir(path: string): string {
+  return path.slice(0, Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\")));
+}
 
 /** `~/...` -> $HOME/... (on iOS HOME is the app's container). */
 export function expandHome(path: string): string {
@@ -26,6 +31,11 @@ export function storagePath(): string {
   const c = config();
   if (c.storageFile !== "") return expandHome(c.storageFile);
   if (MOBILE) return (env["HOME"] ?? ".") + "/Library/Application Support/" + c.app + "/" + c.storageName;
+  // Windows: %APPDATA%\<app> (HOME is only set under a Unix-style shell there)
+  if (process.platform === "win32") {
+    const appData = env["APPDATA"] ?? env["USERPROFILE"];
+    if (appData !== undefined && appData !== "") return appData.replace(/\\/g, "/") + "/" + c.app + "/" + c.storageName;
+  }
   const xdg = env["XDG_CONFIG_HOME"];
   return (xdg !== undefined && xdg !== "" ? xdg : (env["HOME"] ?? ".") + "/.config") + "/" + c.app + "/" + c.storageName;
 }
@@ -59,7 +69,7 @@ export function flushStorage(): void {
   const now = snapshot();
   if (now === saved) return;
   try {
-    mkdirSync(STORAGE.slice(0, STORAGE.lastIndexOf("/")), { recursive: true });
+    mkdirSync(parentDir(STORAGE), { recursive: true });
     writeFileSync(STORAGE, now);
     saved = now;
   } catch (err) {

@@ -249,7 +249,9 @@ const LANGUAGES: string[] = (() => {
   return langs.length > 0 ? langs : ["en-US"];
 })();
 
-g["navigator"] = {
+// defined, not assigned: where the host already has a getter-only navigator (Node 21+, and
+// Perry builds that follow it) an assignment throws in a module
+const NAVIGATOR = {
   userAgent: "Mozilla/5.0 (Bloom; Perry) AppleWebKit/537.36 (KHTML, like Gecko)", appName: "Netscape", appVersion: "5.0",
   vendor: "Bloom", platform: process.platform === "darwin" ? (MOBILE ? "iPhone" : "MacIntel") : process.platform,
   language: LANGUAGES[0],
@@ -263,6 +265,7 @@ g["navigator"] = {
   storage: { persist: (): Promise<boolean> => Promise.resolve(true), estimate: (): Promise<{ usage: number; quota: number }> => Promise.resolve({ usage: 0, quota: 1e9 }) },
   mediaDevices: undefined, serviceWorker: undefined, xr: undefined, gpu: undefined,
 };
+Object.defineProperty(g, "navigator", { value: NAVIGATOR, writable: true, configurable: true, enumerable: true });
 define("devicePixelRatio", () => pixelRatio());
 define("innerWidth", () => cssSize().width);
 define("innerHeight", () => cssSize().height);

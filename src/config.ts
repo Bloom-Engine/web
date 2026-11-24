@@ -126,14 +126,17 @@ let root: string | null = null;
  */
 export function webRoot(): string {
   if (root !== null) return root;
-  const exe = process.execPath ?? process.argv[0] ?? "";
+  // Windows paths use "\\": the rest of this module (and node:fs) take "/" there as well
+  const exe = (process.execPath ?? process.argv[0] ?? "").replace(/\\/g, "/");
   const dir = exe.slice(0, exe.lastIndexOf("/") + 1);
   const bundle = settings.bundle;
   for (const bundled of [dir + "assets/" + bundle + "/", dir + "../Resources/assets/" + bundle + "/"]) {
     if (existsSync(bundled + "index.html")) { root = bundled; return root; }
   }
   let r = settings.root;
-  if (r === "") r = (process.cwd?.() ?? ".") + "/";
+  if (r === "") r = (process.cwd?.() ?? ".").replace(/\\/g, "/") + "/";
+  // new URL(..., import.meta.url).pathname is "/C:/..." on Windows
+  r = urlPathToFile(r);
   if (!r.endsWith("/")) r += "/";
   root = r;
   return root;
@@ -141,5 +144,12 @@ export function webRoot(): string {
 
 /** The URL the page is at: index.html in the served folder, as a file:// URL. */
 export function pageUrl(): string {
-  return "file://" + webRoot() + settings.served + "index.html";
+  const path = webRoot() + settings.served + "index.html";
+  // a Windows path ("C:/...") needs the third slash: file:///C:/...
+  return "file://" + (path.startsWith("/") ? "" : "/") + path;
+}
+
+/** A file:// URL's pathname as a path on disk: "/C:/x" is "C:/x" on Windows. */
+export function urlPathToFile(pathname: string): string {
+  return /^\/[A-Za-z]:\//.test(pathname) ? pathname.slice(1) : pathname;
 }
