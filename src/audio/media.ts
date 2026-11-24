@@ -25,7 +25,7 @@ function head(path: string, max: number): Uint8Array {
   const fd = openSync(path, "r");
   try {
     const buf = new Uint8Array(Math.min(max, statSync(path).size));
-    const n = readSync(fd, buf, 0, max, 0);
+    const n = readSync(fd, buf, 0, buf.length, 0);
     return buf.subarray(0, n);
   } finally { closeSync(fd); }
 }
